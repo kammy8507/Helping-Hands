@@ -1,0 +1,88 @@
+# ═══════════════════════════════════════════════════════════════════
+# HelpingHands — Spring Boot configuration
+# All secrets/URLs come from environment variables (see backend/.env.example).
+# Nothing sensitive is hard-coded here.
+# ═══════════════════════════════════════════════════════════════════
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: never          # never leak exception messages via the default error page
+    include-stacktrace: never       # never leak stack traces to clients
+
+spring:
+  application:
+    name: helpinghands
+
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/helpinghands?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&tinyInt1isBit=false&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      # The MySQL schema (database/helpinghands_schema.sql) is the source of truth.
+      # Default 'none' = Hibernate never alters or validates DDL (most robust for a
+      # pre-created schema with native ENUM/TINYINT columns). Override via env:
+      #   JPA_DDL_AUTO=validate   -> verify entities match the schema
+      #   JPA_DDL_AUTO=update     -> let Hibernate create/patch tables in dev
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+    open-in-view: false             # DTO mapping happens inside services; no lazy loading in the view layer
+    show-sql: ${JPA_SHOW_SQL:false}
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: ${UPLOAD_MAX_FILE_SIZE:5MB}
+      max-request-size: ${UPLOAD_MAX_REQUEST_SIZE:8MB}
+
+  jackson:
+    time-zone: UTC
+    default-property-inclusion: non_null
+
+# ── Application-specific settings ──────────────────────────────────
+helpinghands:
+  jwt:
+    # 256-bit (32+ byte) Base64 secret. Generate one with:
+    #   openssl rand -base64 48
+    # NEVER commit a real secret. A dev-only fallback is provided so the app boots.
+    secret: ${JWT_SECRET:ZGV2LW9ubHktaGVscGluZ2hhbmRzLXNlY3JldC1jaGFuZ2UtbWUtaW4tcHJvZHVjdGlvbi0xMjM0NTY3ODkw}
+    expiration-ms: ${JWT_EXPIRATION:1800000}      # 30 minutes (matches prototype auto-logout)
+    issuer: helpinghands
+
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+
+  storage:
+    # Local disk storage for accident images (dev). Swap the StorageService impl for S3/GCS later.
+    upload-dir: ${UPLOAD_DIR:uploads}
+    public-base-url: ${UPLOAD_PUBLIC_BASE_URL:http://localhost:8080/uploads}
+    allowed-content-types: image/jpeg,image/jpg,image/png,image/webp
+
+  ai:
+    # Spring Boot forwards accident images to the YOLO microservice.
+    # If unreachable, a clearly-labelled MockAiService responds instead (never presented as real).
+    service-url: ${AI_SERVICE_URL:http://localhost:5000}
+    enabled: ${AI_SERVICE_ENABLED:true}
+    connect-timeout-ms: ${AI_CONNECT_TIMEOUT:2000}
+    read-timeout-ms: ${AI_READ_TIMEOUT:8000}
+
+  fcm:
+    enabled: ${FCM_ENABLED:false}
+    project-id: ${FIREBASE_PROJECT_ID:}
+    client-email: ${FIREBASE_CLIENT_EMAIL:}
+    private-key: ${FIREBASE_PRIVATE_KEY:}
+
+  dispatch:
+    # Max radius (km) to consider a responder "nearby". 0 = ignore distance, match anyone available.
+    max-responder-radius-km: ${DISPATCH_MAX_RADIUS_KM:0}
+
+logging:
+  level:
+    com.helpinghands: ${LOG_LEVEL:INFO}
+    org.springframework.security: WARN
